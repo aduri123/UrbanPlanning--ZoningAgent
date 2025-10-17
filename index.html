@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Zoning Validation — PASS Overlay (Tubli)</title>
+  <title>Zoning Validation Agent — Concept Demo (Tubli)</title>
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,47 +12,77 @@
     :root{
       --bg:#f5faff; --ink:#0f172a; --line:#e2e8f0; --card:#fff;
       --okbg:#dcfce7; --okfg:#065f46; --muted:#475569; --shadow:0 10px 24px rgba(2,6,23,.10);
+      --blue:#2563eb; --green:#10b981; --red:#ef4444;
     }
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
-      font-family: Inter, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;}
-    .shell{max-width:1200px;margin:12px auto;padding:0 12px}
-    .map-wrap{
+      font-family:Inter,system-ui,"Segoe UI",Arial,sans-serif;}
+
+    header{
+      padding:18px 12px;text-align:center;color:#fff;
+      background:linear-gradient(90deg,#2563eb,#06b6d4);
+      box-shadow:0 8px 20px rgba(37,99,235,.18)
+    }
+    header h1{margin:0;font-size:20px;font-weight:800}
+    header p{margin:6px auto 0;max-width:960px;font-size:13px;opacity:.95}
+
+    .wrap{max-width:1200px;margin:16px auto;padding:0 12px}
+    .map-shell{
       position:relative;height:78vh;min-height:460px;border:1px solid var(--line);
       border-radius:16px;overflow:hidden;background:#eaf4ff;box-shadow:var(--shadow)
     }
     #map{position:absolute;inset:0}
     .leaflet-control-attribution{font-size:11px}
 
-    /* PASS overlay card pinned on the map */
     .pass-card{
-      position:absolute;left:12px;bottom:12px;z-index:500;
+      position:absolute;left:16px;bottom:16px;z-index:500;
       background:var(--card);border:1px solid var(--line);border-radius:14px;
-      box-shadow:var(--shadow);padding:14px 14px 12px;min-width:260px
+      box-shadow:var(--shadow);padding:14px 14px 12px;min-width:280px
     }
     .pass-head{display:flex;align-items:center;gap:8px;font-weight:900}
     .badge{font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;
       background:var(--okbg);color:var(--okfg);border:1px solid #86efac}
-    .kv{display:grid;grid-template-columns:110px 1fr;gap:6px;margin-top:8px;font-size:13px}
+    .kv{display:grid;grid-template-columns:120px 1fr;gap:6px;margin-top:8px;font-size:13px}
     .kv div:nth-child(odd){color:var(--muted)}
     .audit{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:12px;color:var(--muted)}
+
+    .legend{
+      position:absolute;top:12px;right:12px;z-index:500;
+      background:#fff;border:1px solid var(--line);border-radius:12px;
+      box-shadow:var(--shadow);padding:8px 10px;font-size:12px;color:#1e3a8a
+    }
+    .legend .row{display:flex;align-items:center;gap:8px;margin:4px 0}
+    .dot{width:12px;height:12px;border-radius:999px;display:inline-block}
+    .dot.parcel{background:var(--blue)}
+    .dot.zoning{background:var(--green)}
+    .dot.non{background:var(--red)}
 
     .status{
       position:absolute;top:12px;left:12px;z-index:500;
       background:#fff;border:1px solid var(--line);border-radius:10px;
-      padding:6px 8px;font-size:12px;box-shadow:var(--shadow);color:#1e3a8a
+      padding:6px 8px;font-size:12px;box-shadow:var(--shadow);color:#1e3a8a;display:none;
     }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="map-wrap">
-      <div id="map" role="region" aria-label="Map of Tubli, Bahrain"></div>
+  <header>
+    <h1>Zoning Validation Agent — Concept Demo</h1>
+    <p>OpenStreetMap centered on <b>Tubli, Bahrain</b> with a static <b>Compliance Result — PASS</b> overlay and legend.</p>
+  </header>
 
-      <div id="status" class="status" style="display:none;"></div>
+  <div class="wrap">
+    <div class="map-shell">
+      <div id="map"></div>
 
-      <!-- PASS overlay -->
-      <section class="pass-card" aria-label="Compliance Result">
+      <aside class="legend">
+        <div class="row"><span class="dot parcel"></span> Parcel</div>
+        <div class="row"><span class="dot zoning"></span> Zoning</div>
+        <div class="row"><span class="dot non"></span> Non-compliant</div>
+      </aside>
+
+      <div id="status" class="status"></div>
+
+      <section class="pass-card">
         <div class="pass-head">✅ Compliance Result <span class="badge">PASS</span></div>
         <div class="kv">
           <div>Parcel</div><div>202A-1156</div>
@@ -60,7 +90,7 @@
           <div>Decision</div><div>Compliant — setbacks, height, FAR within limits</div>
         </div>
         <div class="audit">
-          Sources: SDI Maps (ArcGIS Enterprise) • Query: REST/OGC (read-only) • Timestamp: 2025-10-17
+          Sources : SDI Maps (ArcGIS Enterprise) • Query : REST/OGC (read-only) • Timestamp : 2025-10-17
         </div>
       </section>
     </div>
@@ -69,77 +99,45 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // Center the map on Tubli
     const TUBLI = [26.1452, 50.5722];
-    const map = L.map('map', { zoomControl:true, attributionControl:true }).setView(TUBLI, 15);
+    const map = L.map('map').setView(TUBLI, 15);
 
-    // Primary + backup tile sources
     const sources = [
-      { name: "OSM main", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", options: { subdomains: "abc" } },
-      { name: "OSM fallback", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", options: {} },
-      { name: "OSM France", url: "https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", options: {} }
+      {name:"OSM main",url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",options:{subdomains:"abc"}},
+      {name:"OSM fallback",url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",options:{}},
+      {name:"OSM France",url:"https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",options:{}}
     ];
-
-    let current = 0;
-    let layer = null;
-    const statusEl = document.getElementById('status');
-
-    function showStatus(msg){
-      statusEl.textContent = msg;
-      statusEl.style.display = 'block';
-    }
-
+    let current=0,layer=null;
+    const statusEl=document.getElementById('status');
+    function showStatus(m){statusEl.textContent=m;statusEl.style.display='block';}
     function useSource(i){
-      if(layer){ map.removeLayer(layer); layer.off('tileerror', onErr); layer.off('load', onLoad); }
-      const src = sources[i];
-      layer = L.tileLayer(src.url, Object.assign({
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-      }, src.options));
-      layer.on('tileerror', onErr);
-      layer.on('load', onLoad);
+      if(layer){map.removeLayer(layer);layer.off('tileerror',onErr);}
+      const s=sources[i];
+      layer=L.tileLayer(s.url,{...s.options,maxZoom:19,attribution:'&copy; OpenStreetMap contributors'});
+      layer.on('tileerror',onErr);
       layer.addTo(map);
     }
-
     function onErr(){
-      if (current < sources.length - 1) {
-        current += 1;
-        showStatus('Primary tiles failed — switched to: ' + sources[current].name);
-        useSource(current);
-      } else {
-        showStatus('Tile load failed. Please check network or browser extensions.');
-      }
+      if(current<sources.length-1){current++;showStatus('Switched to '+sources[current].name);useSource(current);}
+      else showStatus('Tile load failed — check network.');
     }
-    function onLoad(){
-      setTimeout(() => map.invalidateSize(), 100);
-    }
-
     useSource(current);
 
-    // Demo parcel
-    const parcel = L.polygon(
-      [
-        [26.14590, 50.57190],
-        [26.14590, 50.57245],
-        [26.14540, 50.57245],
-        [26.14540, 50.57190]
-      ],
-      { color:'#60a5fa', weight:2, fillColor:'#cfe7ff', fillOpacity:0.85 }
-    ).addTo(map).bindTooltip('Parcel 202A-1156', {sticky:true});
+    const parcel=L.polygon(
+      [[26.1459,50.5719],[26.1459,50.57245],[26.1454,50.57245],[26.1454,50.5719]],
+      {color:'#2563eb',weight:2,fillColor:'#93c5fd',fillOpacity:0.8}
+    ).addTo(map).bindTooltip('Parcel 202A-1156',{sticky:true});
 
-    // Demo zoning area
-    const zoning = L.polygon(
-      [
-        [26.1470, 50.5712],
-        [26.1470, 50.5732],
-        [26.1444, 50.5732],
-        [26.1444, 50.5712]
-      ],
-      { color:'#34d399', weight:2, dashArray:'4,4', fillColor:'#d1fae5', fillOpacity:0.35 }
-    ).addTo(map).bindTooltip('Zone B1 (Residential)', {sticky:true});
+    const zoning=L.polygon(
+      [[26.1470,50.5712],[26.1470,50.5732],[26.1444,50.5732],[26.1444,50.5712]],
+      {color:'#10b981',weight:2,dashArray:'4,4',fillColor:'#a7f3d0',fillOpacity:0.3}
+    ).addTo(map).bindTooltip('Zone B1 (Residential)',{sticky:true});
 
-    // Resize fix
-    window.addEventListener('load', () => setTimeout(() => map.invalidateSize(), 150));
+    L.circleMarker([26.1464,50.5723],
+      {radius:6,color:'#ef4444',fillColor:'#ef4444',fillOpacity:0.9})
+      .addTo(map).bindTooltip('Example Non-compliant point',{sticky:true});
+
+    window.addEventListener('load',()=>setTimeout(()=>map.invalidateSize(),150));
   </script>
 </body>
 </html>
